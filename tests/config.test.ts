@@ -9,6 +9,11 @@ describe("loadConfig", () => {
     expect(config.isProduction).toBe(false);
   });
 
+  it("em produção, loga só avisos e erros por padrão, mas aceita LOG_LEVEL", () => {
+    expect(loadConfig({ BOT_TOKEN: "x", NODE_ENV: "production" }).log.level).toBe("warn");
+    expect(loadConfig({ BOT_TOKEN: "x", NODE_ENV: "production", LOG_LEVEL: "debug" }).log.level).toBe("debug");
+  });
+
   it("exige BOT_TOKEN", () => {
     expect(() => loadConfig({})).toThrow(ConfigError);
   });

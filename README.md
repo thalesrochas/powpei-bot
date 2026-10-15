@@ -5,10 +5,11 @@
 # powpei-bot 🎆
 
 Bot de Telegram que solta fogos de artifício — em forma de onomatopeia — nos grupos.
-Qualquer membro do grupo manda `/pow` e o bot responde com uma rajada aleatória de
-`POW! 💥`, `PÁ PÁ PÁ!`, `FIIIIIUUUUU... KABUM!` e afins.
+Qualquer membro do grupo manda `/pow` e o bot solta um fogo sorteado, mensagem a mensagem:
+`tsss...` → `FIIIIIUUUUU 🚀` → `POW! 💥🎆` → `PÁ PÁ PÁ ✨`.
 
-Feito em Node.js + TypeScript com [grammY](https://grammy.dev), para rodar em Docker num Raspberry Pi 3B.
+Feito em Node.js + TypeScript com [grammY](https://grammy.dev), para rodar em Docker — pensado para um
+Raspberry Pi 3B.
 
 ## Como funciona
 
@@ -34,7 +35,8 @@ Feito em Node.js + TypeScript com [grammY](https://grammy.dev), para rodar em Do
 - Erros de flood limit (429) e falhas 5xx do Telegram são repetidos automaticamente
   ([@grammyjs/auto-retry](https://grammy.dev/plugins/auto-retry)).
 
-Todos os valores são configuráveis pelo `.env`.
+Os fogos, pesos e pausas ficam no código ([como editar](#adicionando-sons-e-fogos)); cooldown, teto de
+mensagens e logs são configurados pelo [`.env`](#configuração-env).
 
 ### Apresentação e boas-vindas
 
@@ -73,7 +75,7 @@ cp .env.example .env
 | `BOT_TOKEN`            | —      | Token do @BotFather (**obrigatório**)                             |
 | `POW_MAX_MESSAGES`     | `8`    | Teto de mensagens por `/pow`; acima dele o meio do roteiro é cortado, mantendo o desfecho |
 | `POW_COOLDOWN_SECONDS` | `5`    | Bloqueio do `/pow` por grupo depois que o fogo termina (`0` desativa) |
-| `LOG_LEVEL`            | `info` | `trace`, `debug`, `info`, `warn`, `error` ou `fatal`             |
+| `LOG_LEVEL`            | `info` (dev) / `warn` (produção) | `trace`, `debug`, `info`, `warn`, `error` ou `fatal` |
 | `LOG_DIR`              | `logs` | Pasta dos arquivos de log                                        |
 | `LOG_MAX_SIZE`         | `1m`   | Tamanho máximo de cada arquivo antes de rotacionar (`k`, `m`, `g`) |
 | `LOG_MAX_FILES`        | `5`    | Quantos arquivos antigos manter, além do atual                   |
@@ -114,9 +116,10 @@ src/
 └─ lib/
    ├─ cooldown.ts        # cooldown em memória por chat
    ├─ fireworks.ts       # sorteio do fogo e montagem das mensagens a partir do roteiro
-   └─ random.ts          # randInt, pick, sleep
+   └─ random.ts          # randInt, pick, pickWeighted, sleep
 tests/                   # testes unitários
 assets/                  # imagem de perfil do bot (não vai para a imagem Docker)
+logs/                    # arquivos de log (só o .gitkeep é versionado)
 ```
 
 ### Adicionando sons e fogos
@@ -155,8 +158,16 @@ Os logs vão para dois lugares:
   além do atual. Com os padrões, o teto é ~6 MB em disco — mesmo após reinícios.
 - **stdout**, visível com `docker compose logs`. No Docker esse log também é limitado (3 × 1 MB).
 
-O que é registrado: inicialização, entrada/saída de grupos, `/start`, cada `/pow` (grupo, usuário, fogo sorteado, quantidade de mensagens), erros
-da API/rede e, com `LOG_LEVEL=debug`, os `/pow` ignorados por cooldown.
+O nível depende do ambiente, para poupar o cartão SD em produção:
+
+| Nível            | Quando é o padrão                 | O que é registrado                                                        |
+| ---------------- | --------------------------------- | ------------------------------------------------------------------------- |
+| `warn`           | produção (`NODE_ENV=production`, Docker) | só avisos e erros: falhas da API/rede, erro ao atualizar a descrição, falha no boot |
+| `info`           | desenvolvimento (`npm run dev`)   | também inicialização, entrada/saída de grupos, `/start` e cada `/pow` (grupo, usuário, fogo, mensagens) |
+| `debug`          | —                                 | também os `/pow` ignorados por fogo em andamento ou cooldown              |
+
+Para investigar algo no Pi, defina `LOG_LEVEL=info` (ou `debug`) no `.env` e rode `docker compose up -d`;
+depois comente a linha de novo.
 
 ```sh
 tail -f logs/powpei.*.log                 # no host
@@ -165,8 +176,15 @@ docker compose logs -f                    # stdout do container
 
 ## Deploy no Raspberry Pi (Docker)
 
-O Pi roda Debian 13 arm64 com Docker (detalhes em [rpi3b-amgiente.md](rpi3b-amgiente.md)).
-A imagem é construída no próprio Pi a partir de `node:24-alpine`, que tem variante arm64.
+A imagem é construída no próprio servidor a partir de `node:24-alpine`, que tem variantes arm64 e x86_64,
+então o mesmo passo a passo serve para outras máquinas. Não é preciso instalar Node.js no servidor.
+
+### Requisitos
+
+- Raspberry Pi 3B ou mais novo com **sistema 64-bit** (arm64), como Raspberry Pi OS 64-bit ou Debian.
+- **Docker** com o plugin **Compose** (`docker compose version`) e **git**.
+- Usuário no grupo `docker` (`sudo usermod -aG docker $USER` e entrar de novo); sem isso, prefixe os
+  comandos `docker` com `sudo`.
 
 ### Primeira instalação
 
@@ -176,11 +194,14 @@ cd ~/powpei-bot
 cp .env.example .env
 nano .env                       # preencha o BOT_TOKEN
 docker compose up -d --build
-docker compose logs -f          # deve aparecer "Bot @... iniciado 🎆"
+docker compose ps               # deve estar "running"; mande /pow no grupo para confirmar
 ```
 
-A pasta `logs/` é montada no container em `/app/logs`. O container roda como o usuário `node`
-(uid 1000), o mesmo uid do usuário do Pi, então os arquivos ficam com o dono correto.
+Em produção o log só registra avisos e erros, então um `docker compose logs` vazio é bom sinal.
+
+A pasta `logs/` (criada pelo `git clone`) é montada no container em `/app/logs`. O container roda como o
+usuário `node` (uid 1000), que costuma ser o mesmo uid do primeiro usuário do sistema. Se o seu for
+outro (`id -u`), libere a escrita com `sudo chown 1000:1000 logs`.
 
 ### Atualizando
 
@@ -205,9 +226,11 @@ tenta de novo.
 
 ### Limites do Pi 3B
 
-- O container tem limite de 256 MB de RAM (`mem_limit`); em uso o bot consome bem menos.
-- O pico de memória é o **build** (`npm ci` + `tsc`). O Pi não tem swap; se o build for morto por falta
-  de memória, habilite zram (`sudo apt install zram-tools`) e tente de novo.
+- **Memória:** o Pi 3B tem ~1 GB de RAM. O container tem limite de 256 MB (`mem_limit`), e o bot em uso
+  consome bem menos. O pico é o **build** (`npm ci` + `tsc`); se ele for morto por falta de memória
+  (comum sem swap), habilite zram (`sudo apt install zram-tools`) e tente de novo.
+- **Cartão SD:** escritas constantes desgastam o cartão. Por isso, em produção o bot só registra avisos e
+  erros, e tanto os arquivos de log quanto o log do Docker têm tamanho limitado.
 
 ## Solução de problemas
 
@@ -216,5 +239,7 @@ tenta de novo.
 | `Configuração inválida: BOT_TOKEN não definido`    | `.env` ausente ou sem token.                                             |
 | `401: Unauthorized` no log                         | Token errado ou revogado; gere outro no @BotFather.                     |
 | `409: Conflict` no log                             | Há outra instância do bot rodando com o mesmo token (ex.: `npm run dev` no PC). |
+| `EACCES: permission denied` em `logs/`             | A pasta `logs/` não pertence ao uid 1000: `sudo chown 1000:1000 logs` e `docker compose up -d`. |
+| `exec format error` ao subir o container           | Sistema 32-bit ou imagem de outra arquitetura; use um sistema 64-bit e builde no próprio servidor. |
 | Bot não responde no grupo                          | Confira se o comando foi `/pow` e se o grupo não está em cooldown (`LOG_LEVEL=debug`). |
 | `/pow` responde com atraso                         | Flood limit do Telegram; o auto-retry espera e reenvia. Aumente `POW_COOLDOWN_SECONDS` ou reduza `POW_MAX_MESSAGES`. |

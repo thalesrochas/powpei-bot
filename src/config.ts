@@ -41,6 +41,8 @@ export function loadConfig(env: Env = process.env): Config {
     throw new ConfigError("BOT_TOKEN não definido. Copie .env.example para .env e preencha o token do @BotFather.");
   }
 
+  const isProduction = env.NODE_ENV === "production";
+
   return {
     botToken,
     pow: {
@@ -48,11 +50,12 @@ export function loadConfig(env: Env = process.env): Config {
       cooldownSeconds: readInt(env, "POW_COOLDOWN_SECONDS", 5),
     },
     log: {
-      level: readString(env, "LOG_LEVEL", "info"),
+      // Em produção, só avisos e erros, para poupar disco (cartão SD) e CPU.
+      level: readString(env, "LOG_LEVEL", isProduction ? "warn" : "info"),
       dir: readString(env, "LOG_DIR", "logs"),
       maxSize: readString(env, "LOG_MAX_SIZE", "1m"),
       maxFiles: readInt(env, "LOG_MAX_FILES", 5, 1),
     },
-    isProduction: env.NODE_ENV === "production",
+    isProduction,
   };
 }
