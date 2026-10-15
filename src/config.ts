@@ -3,6 +3,8 @@ export interface Config {
   pow: {
     /** Teto de segurança de mensagens por /pow (o roteiro do fogo define a quantidade). */
     maxMessages: number;
+    /** Orçamento de mensagens por chat a cada 60s (o Telegram limita grupos a ~20/min). */
+    maxMessagesPerMinute: number;
     cooldownSeconds: number;
   };
   log: {
@@ -43,12 +45,18 @@ export function loadConfig(env: Env = process.env): Config {
 
   const isProduction = env.NODE_ENV === "production";
 
+  const pow = {
+    maxMessages: readInt(env, "POW_MAX_MESSAGES", 8, 1),
+    maxMessagesPerMinute: readInt(env, "POW_MAX_MESSAGES_PER_MINUTE", 15, 1),
+    cooldownSeconds: readInt(env, "POW_COOLDOWN_SECONDS", 5),
+  };
+  if (pow.maxMessages > pow.maxMessagesPerMinute) {
+    throw new ConfigError("POW_MAX_MESSAGES não pode ser maior que POW_MAX_MESSAGES_PER_MINUTE");
+  }
+
   return {
     botToken,
-    pow: {
-      maxMessages: readInt(env, "POW_MAX_MESSAGES", 8, 1),
-      cooldownSeconds: readInt(env, "POW_COOLDOWN_SECONDS", 5),
-    },
+    pow,
     log: {
       // Em produção, só avisos e erros, para poupar disco (cartão SD) e CPU.
       level: readString(env, "LOG_LEVEL", isProduction ? "warn" : "info"),

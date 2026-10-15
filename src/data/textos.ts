@@ -53,13 +53,23 @@ export function boasVindasPrivado(
   ].join("\n");
 }
 
-/** Enviada quando o bot entra em um grupo (e no /start dentro de grupos). */
-export function boasVindasGrupo(nome: string, queima: Queima): string {
+/**
+ * Enviada quando o bot entra em um grupo (e no /start dentro de grupos).
+ * `modoLento`: o grupo tem modo lento e o bot não é admin — avisa que os fogos não vão funcionar.
+ */
+export function boasVindasGrupo(nome: string, queima: Queima, modoLento = false): string {
   return [
     "🎆 Chegou o fogueteiro! 🎆",
     "",
     `Valeu por me chamar, galera! Eu sou o ${nome}.`,
     `Sempre que quiserem comemorar, é só mandar /pow e eu solto um fogo: ${TIPOS_DE_FOGO} 🧨🚀💥`,
     ...avisoCooldown(queima),
+    ...(modoLento
+      ? [
+          "",
+          "⚠️ Este grupo está com modo lento, e ele vale pra mim também. Pra eu conseguir soltar os fogos, " +
+            "me tornem administrador (não preciso de nenhuma permissão).",
+        ]
+      : []),
   ].join("\n");
 }

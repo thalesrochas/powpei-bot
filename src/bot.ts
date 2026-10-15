@@ -11,8 +11,9 @@ export const COMMANDS = [POW_COMMAND];
 export function createBot(config: Config, logger: Logger): Bot {
   const bot = new Bot(config.botToken);
 
-  // Repete automaticamente requisições que esbarram no flood limit (429) ou em erros 5xx do Telegram.
-  bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 30 }));
+  // Repete requisições com flood limit (429) curto ou erro 5xx do Telegram. Esperas longas (ex.: modo
+  // lento do grupo) não são aguardadas: o erro sobe e o /pow pausa o chat até a liberação.
+  bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 3 }));
 
   bot.command("start", createStartHandler(config.pow, logger));
   bot.command(POW_COMMAND.command, createPowHandler(config.pow, logger));

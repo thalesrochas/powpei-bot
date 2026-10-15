@@ -28,14 +28,29 @@ Raspberry Pi 3B.
   O mesmo texto nunca sai duas vezes seguidas.
 - **Cooldown por grupo** (padrão 5 s), contado a partir do **fim** do fogo: enquanto um fogo está em
   andamento ou em cooldown, novos `/pow` naquele grupo são ignorados em silêncio. Assim os fogos nunca se
-  sobrepõem e o grupo fica longe do limite do Telegram (~20 mensagens/min por grupo).
+  sobrepõem.
 - Comandos enviados enquanto o bot estava desligado são descartados ao religar (sem rajada acumulada).
 - Updates são processados em paralelo ([@grammyjs/runner](https://grammy.dev/plugins/runner)), então um
   `/pow` em andamento num grupo não atrasa os outros.
-- Erros de flood limit (429) e falhas 5xx do Telegram são repetidos automaticamente
-  ([@grammyjs/auto-retry](https://grammy.dev/plugins/auto-retry)).
 
-Os fogos, pesos e pausas ficam no código ([como editar](#adicionando-sons-e-fogos)); cooldown, teto de
+### Limites do Telegram
+
+O Telegram pune bots que mandam mensagens demais com bloqueios que crescem a cada abuso (de segundos a
+horas). O bot se protege assim:
+
+- **Orçamento por chat** (padrão 15 mensagens por minuto, abaixo do limite de ~20 para grupos): o `/pow`
+  só começa se o fogo inteiro cabe no que sobrou do último minuto; senão é ignorado em silêncio. Nenhum
+  fogo é cortado no meio.
+- **Bloqueio respeitado:** esperas curtas (até 3 s) são aguardadas e a mensagem é reenviada
+  ([@grammyjs/auto-retry](https://grammy.dev/plugins/auto-retry)). Se o Telegram pedir uma espera maior,
+  o fogo é interrompido e o `/pow` fica pausado naquele chat até a liberação, com um único aviso no log.
+
+**Modo lento:** em grupos com modo lento, o bot também só pode mandar uma mensagem a cada X tempo, o
+que impede os fogos. Torne o bot **administrador** do grupo (sem nenhuma permissão extra), porque
+administradores não passam pelo modo lento. Ao entrar num grupo com modo lento sem ser admin, o bot avisa
+isso na mensagem de boas-vindas.
+
+Os fogos, pesos e pausas ficam no código ([como editar](#adicionando-sons-e-fogos)); cooldown, limites de
 mensagens e logs são configurados pelo [`.env`](#configuração-env).
 
 ### Apresentação e boas-vindas
@@ -52,10 +67,17 @@ mensagens e logs são configurados pelo [`.env`](#configuração-env).
 
 1. Fale com o [@BotFather](https://t.me/BotFather) e use `/newbot`. Guarde o **token**.
 2. Garanta que o bot pode entrar em grupos: `/setjoingroups` → **Enable** (é o padrão).
-3. O *privacy mode* pode continuar ligado: mesmo assim o bot recebe comandos como `/pow`.
-4. Foto de perfil: `/setuserpic` → escolha o bot → envie [assets/powpei-bot.png](assets/powpei-bot.png)
+3. Foto de perfil: `/setuserpic` → escolha o bot → envie [assets/powpei-bot.png](assets/powpei-bot.png)
    **como foto** (não como arquivo).
-5. Adicione o bot ao grupo e mande `/pow`.
+4. Adicione o bot ao grupo e mande `/pow`.
+
+**Recomendado: torne o bot administrador do grupo**, sem nenhuma permissão extra. Isso evita dois
+problemas:
+- **Modo lento:** administradores não passam por ele (veja [Limites do Telegram](#limites-do-telegram)).
+- **Privacy mode:** com ele ligado (o padrão), um `/pow` sem `@NomeDoBot` só chega ao bot se ele foi o
+  último bot a falar no grupo. Em grupos com outros bots, o comando pode ir para outro. Administradores
+  recebem tudo. Alternativa: `/setprivacy` → **Disable** no @BotFather, e depois remova e adicione o bot
+  ao grupo de novo.
 
 > Não use `/setdescription` nem `/setabouttext` no @BotFather: o bot sobrescreve esses textos ao iniciar
 > com os de [src/data/textos.ts](src/data/textos.ts).
@@ -74,6 +96,7 @@ cp .env.example .env
 | ---------------------- | ------ | ---------------------------------------------------------------- |
 | `BOT_TOKEN`            | —      | Token do @BotFather (**obrigatório**)                             |
 | `POW_MAX_MESSAGES`     | `8`    | Teto de mensagens por `/pow`; acima dele o meio do roteiro é cortado, mantendo o desfecho |
+| `POW_MAX_MESSAGES_PER_MINUTE` | `15` | Orçamento de mensagens por chat a cada 60 s (o Telegram limita grupos a ~20/min); não pode ser menor que `POW_MAX_MESSAGES` |
 | `POW_COOLDOWN_SECONDS` | `5`    | Bloqueio do `/pow` por grupo depois que o fogo termina (`0` desativa) |
 | `LOG_LEVEL`            | `info` (dev) / `warn` (produção) | `trace`, `debug`, `info`, `warn`, `error` ou `fatal` |
 | `LOG_DIR`              | `logs` | Pasta dos arquivos de log                                        |
@@ -115,6 +138,7 @@ src/
 │  └─ textos.ts          # descrição e mensagens de boas-vindas
 └─ lib/
    ├─ cooldown.ts        # cooldown em memória por chat
+   ├─ rate-window.ts     # orçamento de mensagens por chat (janela de 60 s)
    ├─ fireworks.ts       # sorteio do fogo e montagem das mensagens a partir do roteiro
    └─ random.ts          # randInt, pick, pickWeighted, sleep
 tests/                   # testes unitários
@@ -162,9 +186,9 @@ O nível depende do ambiente, para poupar o cartão SD em produção:
 
 | Nível            | Quando é o padrão                 | O que é registrado                                                        |
 | ---------------- | --------------------------------- | ------------------------------------------------------------------------- |
-| `warn`           | produção (`NODE_ENV=production`, Docker) | só avisos e erros: falhas da API/rede, erro ao atualizar a descrição, falha no boot |
+| `warn`           | produção (`NODE_ENV=production`, Docker) | só avisos e erros: bloqueios do Telegram, grupo com modo lento, falhas da API/rede, erro ao atualizar a descrição, falha no boot |
 | `info`           | desenvolvimento (`npm run dev`)   | também inicialização, entrada/saída de grupos, `/start` e cada `/pow` (grupo, usuário, fogo, mensagens) |
-| `debug`          | —                                 | também os `/pow` ignorados por fogo em andamento ou cooldown              |
+| `debug`          | —                                 | também os `/pow` ignorados (fogo em andamento, cooldown, orçamento do minuto esgotado ou bloqueio) |
 
 Para investigar algo no Pi, defina `LOG_LEVEL=info` (ou `debug`) no `.env` e rode `docker compose up -d`;
 depois comente a linha de novo.
@@ -241,5 +265,6 @@ tenta de novo.
 | `409: Conflict` no log                             | Há outra instância do bot rodando com o mesmo token (ex.: `npm run dev` no PC). |
 | `EACCES: permission denied` em `logs/`             | A pasta `logs/` não pertence ao uid 1000: `sudo chown 1000:1000 logs` e `docker compose up -d`. |
 | `exec format error` ao subir o container           | Sistema 32-bit ou imagem de outra arquitetura; use um sistema 64-bit e builde no próprio servidor. |
-| Bot não responde no grupo                          | Confira se o comando foi `/pow` e se o grupo não está em cooldown (`LOG_LEVEL=debug`). |
-| `/pow` responde com atraso                         | Flood limit do Telegram; o auto-retry espera e reenvia. Aumente `POW_COOLDOWN_SECONDS` ou reduza `POW_MAX_MESSAGES`. |
+| Bot não responde no grupo (nada no log com `LOG_LEVEL=info`) | O comando não chegou: privacy mode com outros bots no grupo. Torne o bot administrador ou use `/pow@NomeDoBot`. |
+| Aviso "Telegram limitou o envio neste chat" no log | Modo lento do grupo ou excesso de mensagens. O `/pow` volta sozinho no horário de `liberaEm`; para modo lento, torne o bot administrador. |
+| Alguns `/pow` ignorados em grupo movimentado       | Orçamento do minuto esgotado (`LOG_LEVEL=debug` mostra). É proposital; aumente `POW_COOLDOWN_SECONDS` para espaçar os fogos. |

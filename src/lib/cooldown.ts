@@ -21,11 +21,11 @@ export class Cooldown {
     return true;
   }
 
-  /** Libera a chave; ela fica bloqueada por mais `durationMs` a partir de agora. */
-  release(key: number): void {
+  /** Libera a chave; ela fica bloqueada por mais `durationMs` (ou o padrão) a partir de agora. */
+  release(key: number, durationMs = this.durationMs): void {
     const now = this.now();
     this.ocupadas.delete(key);
-    this.until.set(key, now + this.durationMs);
+    this.until.set(key, now + durationMs);
     this.prune(now);
   }
 

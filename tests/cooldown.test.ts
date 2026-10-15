@@ -25,6 +25,18 @@ describe("Cooldown", () => {
     expect(cooldown.tryAcquire(1)).toBe(true);
   });
 
+  it("aceita uma duração específica no release (ex.: bloqueio pedido pelo Telegram)", () => {
+    let now = 0;
+    const cooldown = new Cooldown(5_000, () => now);
+
+    cooldown.tryAcquire(1);
+    cooldown.release(1, 3_000_000);
+    now = 2_999_999;
+    expect(cooldown.tryAcquire(1)).toBe(false);
+    now = 3_000_000;
+    expect(cooldown.tryAcquire(1)).toBe(true);
+  });
+
   it("é independente por chat", () => {
     const cooldown = new Cooldown(5_000, () => 0);
     expect(cooldown.tryAcquire(1)).toBe(true);

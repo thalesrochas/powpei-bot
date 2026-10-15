@@ -23,6 +23,11 @@ describe("boas-vindas", () => {
     expect(boasVindasPrivado("Powpei", "Ana", queima)).toContain("10s");
   });
 
+  it("avisa sobre o modo lento só quando indicado", () => {
+    expect(boasVindasGrupo("Powpei", queima, true)).toContain("modo lento");
+    expect(boasVindasGrupo("Powpei", queima)).not.toContain("modo lento");
+  });
+
   it("omite o aviso de cooldown quando desativado", () => {
     expect(boasVindasGrupo("Powpei", { cooldownSeconds: 0 })).not.toContain("recarregar");
   });
