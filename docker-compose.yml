@@ -1,0 +1,20 @@
+services:
+  powpei-bot:
+    build: .
+    image: powpei-bot:latest
+    container_name: powpei-bot
+    restart: unless-stopped
+    # tini como PID 1: repassa SIGTERM ao Node para o desligamento gracioso.
+    init: true
+    env_file: .env
+    environment:
+      TZ: America/Fortaleza
+    volumes:
+      - ./logs:/app/logs
+    mem_limit: 256m
+    # Limita também o log de stdout guardado pelo Docker, para poupar o cartão SD.
+    logging:
+      driver: local
+      options:
+        max-size: "1m"
+        max-file: "3"
