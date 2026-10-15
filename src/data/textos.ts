@@ -8,8 +8,8 @@ export function descricao(nome: string): string {
   return [
     `🎆 ${nome} — a queima de fogos do seu grupo!`,
     "",
-    "Me adicione a um grupo e mande /pow: eu respondo com uma rajada de rojões, foguetes e bombinhas " +
-      "em forma de onomatopeia. POW! PÁ PÁ PÁ! FIIIIIUUUU... KABUM! 💥",
+    "Me adicione a um grupo e mande /pow: eu solto um fogo — bombinha, rojão, foguete ou bateria — " +
+      "em forma de onomatopeia. tsss... FIIIIIUUUU... POW! 💥",
     "",
     "Qualquer pessoa do grupo pode soltar os fogos, e cada /pow é uma queima diferente. 🧨🚀",
   ].join("\n");
@@ -21,16 +21,10 @@ export function descricaoCurta(): string {
 }
 
 interface Queima {
-  minMessages: number;
-  maxMessages: number;
   cooldownSeconds: number;
 }
 
-function faixaDeEstouros({ minMessages, maxMessages }: Queima): string {
-  if (minMessages === maxMessages)
-    return minMessages === 1 ? "1 estouro" : `${minMessages} estouros`;
-  return `de ${minMessages} a ${maxMessages} estouros`;
-}
+const TIPOS_DE_FOGO = "bombinha, rojão, foguete, bateria…";
 
 function avisoCooldown({ cooldownSeconds }: Queima): string[] {
   if (cooldownSeconds <= 0) return [];
@@ -51,10 +45,11 @@ export function boasVindasPrivado(
     "",
     `Eu sou o ${nome}, o fogueteiro do Telegram.`,
     "",
-    `🧨 /pow — solta uma rajada de fogos (${faixaDeEstouros(queima)})`,
+    `🧨 /pow — solta um fogo diferente a cada vez: ${TIPOS_DE_FOGO}`,
     "",
     "Eu brilho mesmo é em grupo: me adicione a um e qualquer pessoa pode soltar os fogos.",
     "Quer testar? Manda um /pow aqui mesmo! 💥",
+    ...avisoCooldown(queima),
   ].join("\n");
 }
 
@@ -64,7 +59,7 @@ export function boasVindasGrupo(nome: string, queima: Queima): string {
     "🎆 Chegou o fogueteiro! 🎆",
     "",
     `Valeu por me chamar, galera! Eu sou o ${nome}.`,
-    `Sempre que quiserem comemorar, é só mandar /pow e eu solto os fogos (${faixaDeEstouros(queima)}). 🧨🚀💥`,
+    `Sempre que quiserem comemorar, é só mandar /pow e eu solto um fogo: ${TIPOS_DE_FOGO} 🧨🚀💥`,
     ...avisoCooldown(queima),
   ].join("\n");
 }

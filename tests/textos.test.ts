@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { boasVindasGrupo, boasVindasPrivado, descricao, descricaoCurta } from "../src/data/textos.js";
 
-const queima = { minMessages: 1, maxMessages: 5, cooldownSeconds: 10 };
+const queima = { cooldownSeconds: 10 };
 // Nome de exibição bem longo (o Telegram permite até 64 caracteres).
 const nomeLongo = "x".repeat(64);
 
@@ -18,13 +18,12 @@ describe("boas-vindas", () => {
     expect(boasVindasPrivado("Powpei", undefined, queima)).toMatch(/^Opa! /);
   });
 
-  it("reflete a configuração de mensagens e cooldown", () => {
-    expect(boasVindasGrupo("Powpei", queima)).toContain("de 1 a 5 estouros");
+  it("reflete o cooldown configurado", () => {
     expect(boasVindasGrupo("Powpei", queima)).toContain("10s");
-    expect(boasVindasGrupo("Powpei", { ...queima, minMessages: 3, maxMessages: 3 })).toContain("3 estouros");
+    expect(boasVindasPrivado("Powpei", "Ana", queima)).toContain("10s");
   });
 
   it("omite o aviso de cooldown quando desativado", () => {
-    expect(boasVindasGrupo("Powpei", { ...queima, cooldownSeconds: 0 })).not.toContain("recarregar");
+    expect(boasVindasGrupo("Powpei", { cooldownSeconds: 0 })).not.toContain("recarregar");
   });
 });

@@ -1,5 +1,9 @@
-/** Cooldown em memória por chave (ex.: id do chat). */
+/**
+ * Cooldown em memória por chave (ex.: id do chat), contado a partir do fim do uso:
+ * `tryAcquire` ocupa a chave e `release` libera e inicia a espera.
+ */
 export class Cooldown {
+  private readonly ocupadas = new Set<number>();
   private readonly until = new Map<number, number>();
 
   constructor(
@@ -7,15 +11,22 @@ export class Cooldown {
     private readonly now: () => number = Date.now,
   ) {}
 
-  /** Retorna true se a chave estava livre e foi marcada; false se ainda está em cooldown. */
+  /** Retorna true se a chave estava livre e foi ocupada; false se está em uso ou em cooldown. */
   tryAcquire(key: number): boolean {
-    const now = this.now();
+    if (this.ocupadas.has(key)) return false;
     const until = this.until.get(key);
-    if (until !== undefined && until > now) return false;
+    if (until !== undefined && until > this.now()) return false;
 
+    this.ocupadas.add(key);
+    return true;
+  }
+
+  /** Libera a chave; ela fica bloqueada por mais `durationMs` a partir de agora. */
+  release(key: number): void {
+    const now = this.now();
+    this.ocupadas.delete(key);
     this.until.set(key, now + this.durationMs);
     this.prune(now);
-    return true;
   }
 
   /** Remove entradas expiradas para o Map não crescer indefinidamente. */

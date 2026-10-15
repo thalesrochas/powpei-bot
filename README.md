@@ -12,11 +12,22 @@ Feito em Node.js + TypeScript com [grammY](https://grammy.dev), para rodar em Do
 
 ## Como funciona
 
-- `/pow` (ou `/pow@NomeDoBot` em grupos) envia de **1 a 5 mensagens** seguidas, com uma **pausa aleatória**
-  entre elas (300–1200 ms), simulando estouros em sequência.
-- Cada mensagem é uma frase pronta (~40 opções) ou, em ~30% das vezes, um **combo** montado na hora
-  (rastilho + subida + estouro + emojis). A mesma mensagem nunca sai duas vezes seguidas.
-- **Cooldown por grupo** (padrão 5 s): enquanto ativo, novos `/pow` naquele grupo são ignorados em silêncio.
+- `/pow` (ou `/pow@NomeDoBot` em grupos) solta **um fogo**, sorteado por peso. Cada fogo segue um
+  roteiro de etapas, e cada etapa vira uma ou mais mensagens, com pausas próprias (ex.: o silêncio antes do estouro):
+
+  | Fogo     | Peso | Roteiro                                                     | Mensagens |
+  | -------- | ---- | ----------------------------------------------------------- | --------- |
+  | bombinha | 25   | pavio (30%) → estouro                                       | 1–2       |
+  | rojão    | 25   | subida → estouro forte → eco (60%)                          | 2–3       |
+  | foguete  | 30   | rastilho (70%) → subida → estouro → estalos (60%) → reação (40%) | 2–5  |
+  | bateria  | 15   | acendendo (60%) → 3–6 tiros rápidos → gran finale           | 4–8       |
+  | mixou    | 5    | pavio → silêncio → fiasco 💨                                 | 3         |
+
+  Exemplo (foguete): `chhhhh...` → `VRRRUUUSH 🚀` → `POW! 💥🎆` → `pipoco pipoco pipoco` → `ooooohhh 🤩`.
+  O mesmo texto nunca sai duas vezes seguidas.
+- **Cooldown por grupo** (padrão 5 s), contado a partir do **fim** do fogo: enquanto um fogo está em
+  andamento ou em cooldown, novos `/pow` naquele grupo são ignorados em silêncio. Assim os fogos nunca se
+  sobrepõem e o grupo fica longe do limite do Telegram (~20 mensagens/min por grupo).
 - Comandos enviados enquanto o bot estava desligado são descartados ao religar (sem rajada acumulada).
 - Updates são processados em paralelo ([@grammyjs/runner](https://grammy.dev/plugins/runner)), então um
   `/pow` em andamento num grupo não atrasa os outros.
@@ -33,8 +44,7 @@ Todos os valores são configuráveis pelo `.env`.
 - **`/start`** no privado responde com uma apresentação e a lista de comandos; em grupos, com a mensagem
   de boas-vindas do grupo.
 - Ao ser **adicionado a um grupo**, o bot manda a mensagem de boas-vindas automaticamente.
-- Os textos usam o nome de exibição definido no @BotFather e refletem a configuração atual
-  (quantidade de estouros e cooldown).
+- Os textos usam o nome de exibição definido no @BotFather e refletem o cooldown configurado.
 
 ## Criando o bot no Telegram
 
@@ -61,11 +71,8 @@ cp .env.example .env
 | Variável               | Padrão | Descrição                                                        |
 | ---------------------- | ------ | ---------------------------------------------------------------- |
 | `BOT_TOKEN`            | —      | Token do @BotFather (**obrigatório**)                             |
-| `POW_MIN_MESSAGES`     | `1`    | Mínimo de mensagens por `/pow`                                   |
-| `POW_MAX_MESSAGES`     | `5`    | Máximo de mensagens por `/pow`                                   |
-| `POW_DELAY_MIN_MS`     | `300`  | Pausa mínima entre mensagens (ms)                                |
-| `POW_DELAY_MAX_MS`     | `1200` | Pausa máxima entre mensagens (ms)                                |
-| `POW_COOLDOWN_SECONDS` | `5`    | Bloqueio do `/pow` por grupo após o uso (`0` desativa)           |
+| `POW_MAX_MESSAGES`     | `8`    | Teto de mensagens por `/pow`; acima dele o meio do roteiro é cortado, mantendo o desfecho |
+| `POW_COOLDOWN_SECONDS` | `5`    | Bloqueio do `/pow` por grupo depois que o fogo termina (`0` desativa) |
 | `LOG_LEVEL`            | `info` | `trace`, `debug`, `info`, `warn`, `error` ou `fatal`             |
 | `LOG_DIR`              | `logs` | Pasta dos arquivos de log                                        |
 | `LOG_MAX_SIZE`         | `1m`   | Tamanho máximo de cada arquivo antes de rotacionar (`k`, `m`, `g`) |
@@ -102,24 +109,42 @@ src/
 │  └─ start.ts           # o comando /start (boas-vindas)
 ├─ events/membership.ts  # boas-vindas ao entrar em um grupo
 ├─ data/
-│  ├─ onomatopeias.ts    # frases e partes de combo  ← edite aqui para adicionar sons
+│  ├─ onomatopeias.ts    # roteiros dos fogos  ← edite aqui para adicionar sons e fogos
 │  └─ textos.ts          # descrição e mensagens de boas-vindas
 └─ lib/
    ├─ cooldown.ts        # cooldown em memória por chat
-   ├─ fireworks.ts       # sorteio das mensagens (frase pronta ou combo)
+   ├─ fireworks.ts       # sorteio do fogo e montagem das mensagens a partir do roteiro
    └─ random.ts          # randInt, pick, sleep
 tests/                   # testes unitários
 assets/                  # imagem de perfil do bot (não vai para a imagem Docker)
 ```
 
-### Adicionando onomatopeias
+### Adicionando sons e fogos
 
-Edite [src/data/onomatopeias.ts](src/data/onomatopeias.ts):
+Edite a lista `FOGOS` em [src/data/onomatopeias.ts](src/data/onomatopeias.ts). Cada fogo tem `nome`,
+`peso` (chance relativa de ser sorteado) e `etapas`, e cada etapa aceita:
 
-- `FRASES`: frases completas, enviadas como estão.
-- `RASTILHOS`, `SUBIDAS`, `ESTOUROS`, `EMOJIS`: peças usadas para montar combos.
+| Campo    | Padrão   | Significado                                          |
+| -------- | -------- | ---------------------------------------------------- |
+| `textos` | —        | Opções sorteadas para a mensagem                     |
+| `chance` | `1`      | Probabilidade (0–1) de a etapa acontecer             |
+| `repete` | `[1, 1]` | Quantas mensagens a etapa gera (mín, máx)            |
+| `pausa`  | `[0, 0]` | Pausa em ms antes de cada mensagem da etapa (mín, máx) |
 
-Rode `npm test` (o teste acusa frases duplicadas ou vazias) e faça o deploy.
+```ts
+{
+  nome: "rojão",
+  peso: 25,
+  etapas: [
+    { textos: ["FIIIIIIUUUUUU 🚀", "VUUUUUSH..."] },
+    { pausa: [800, 1500], textos: ["PEEEEEI! 💥", "CABRUUUM! ⚡"] },
+    { chance: 0.6, pausa: [1200, 2000], textos: ["...pei.", "...bum."] },
+  ],
+}
+```
+
+Para incluir um som novo, basta acrescentá-lo aos `textos` da etapa certa. Rode `npm test` (o teste acusa
+nomes repetidos, textos vazios e roteiros fora do limite de mensagens) e faça o deploy.
 
 ## Logs
 
@@ -130,7 +155,7 @@ Os logs vão para dois lugares:
   além do atual. Com os padrões, o teto é ~6 MB em disco — mesmo após reinícios.
 - **stdout**, visível com `docker compose logs`. No Docker esse log também é limitado (3 × 1 MB).
 
-O que é registrado: inicialização, entrada/saída de grupos, `/start`, cada `/pow` (grupo, usuário, quantidade de mensagens), erros
+O que é registrado: inicialização, entrada/saída de grupos, `/start`, cada `/pow` (grupo, usuário, fogo sorteado, quantidade de mensagens), erros
 da API/rede e, com `LOG_LEVEL=debug`, os `/pow` ignorados por cooldown.
 
 ```sh
@@ -192,4 +217,4 @@ tenta de novo.
 | `401: Unauthorized` no log                         | Token errado ou revogado; gere outro no @BotFather.                     |
 | `409: Conflict` no log                             | Há outra instância do bot rodando com o mesmo token (ex.: `npm run dev` no PC). |
 | Bot não responde no grupo                          | Confira se o comando foi `/pow` e se o grupo não está em cooldown (`LOG_LEVEL=debug`). |
-| `/pow` responde com atraso                         | Flood limit do Telegram; o auto-retry espera e reenvia. Reduza `POW_MAX_MESSAGES` ou aumente o cooldown. |
+| `/pow` responde com atraso                         | Flood limit do Telegram; o auto-retry espera e reenvia. Aumente `POW_COOLDOWN_SECONDS` ou reduza `POW_MAX_MESSAGES`. |
