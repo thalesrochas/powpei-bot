@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/powpei-bot.png" alt="Foguete listrado entre fogos de artifício com as onomatopeias BOOM!, PÁÁ! e TUM!" width="200">
+</p>
+
 # powpei-bot 🎆
 
 Bot de Telegram que solta fogos de artifício — em forma de onomatopeia — nos grupos.
@@ -37,7 +41,12 @@ Todos os valores são configuráveis pelo `.env`.
 1. Fale com o [@BotFather](https://t.me/BotFather) e use `/newbot`. Guarde o **token**.
 2. Garanta que o bot pode entrar em grupos: `/setjoingroups` → **Enable** (é o padrão).
 3. O *privacy mode* pode continuar ligado: mesmo assim o bot recebe comandos como `/pow`.
-4. Adicione o bot ao grupo e mande `/pow`.
+4. Foto de perfil: `/setuserpic` → escolha o bot → envie [assets/powpei-bot.png](assets/powpei-bot.png)
+   **como foto** (não como arquivo).
+5. Adicione o bot ao grupo e mande `/pow`.
+
+> Não use `/setdescription` nem `/setabouttext` no @BotFather: o bot sobrescreve esses textos ao iniciar
+> com os de [src/data/textos.ts](src/data/textos.ts).
 
 O próprio bot registra o comando `/pow` no menu do Telegram ao iniciar.
 
@@ -100,6 +109,7 @@ src/
    ├─ fireworks.ts       # sorteio das mensagens (frase pronta ou combo)
    └─ random.ts          # randInt, pick, sleep
 tests/                   # testes unitários
+assets/                  # imagem de perfil do bot (não vai para a imagem Docker)
 ```
 
 ### Adicionando onomatopeias
