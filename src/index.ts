@@ -2,6 +2,7 @@ import { run, type RunnerHandle } from "@grammyjs/runner";
 import { COMMANDS, createBot } from "./bot.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
+import { syncProfile } from "./profile.js";
 
 let config;
 try {
@@ -38,6 +39,9 @@ try {
   logger.fatal({ err }, "Falha ao iniciar o bot");
   process.exit(1);
 }
+
+// A descrição é só cosmética: se falhar, o bot sobe mesmo assim.
+await syncProfile(bot, logger).catch((err) => logger.warn({ err }, "Não foi possível atualizar a descrição do bot"));
 
 // O runner processa updates em paralelo: um /pow (com pausas entre mensagens) não atrasa os outros grupos.
 runner = run(bot, { runner: { maxRetryTime: Infinity, retryInterval: "exponential" } });

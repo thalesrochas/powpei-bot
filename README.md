@@ -12,7 +12,7 @@ Feito em Node.js + TypeScript com [grammY](https://grammy.dev), para rodar em Do
   entre elas (300–1200 ms), simulando estouros em sequência.
 - Cada mensagem é uma frase pronta (~40 opções) ou, em ~30% das vezes, um **combo** montado na hora
   (rastilho + subida + estouro + emojis). A mesma mensagem nunca sai duas vezes seguidas.
-- **Cooldown por grupo** (padrão 10 s): enquanto ativo, novos `/pow` naquele grupo são ignorados em silêncio.
+- **Cooldown por grupo** (padrão 5 s): enquanto ativo, novos `/pow` naquele grupo são ignorados em silêncio.
 - Comandos enviados enquanto o bot estava desligado são descartados ao religar (sem rajada acumulada).
 - Updates são processados em paralelo ([@grammyjs/runner](https://grammy.dev/plugins/runner)), então um
   `/pow` em andamento num grupo não atrasa os outros.
@@ -20,6 +20,17 @@ Feito em Node.js + TypeScript com [grammY](https://grammy.dev), para rodar em Do
   ([@grammyjs/auto-retry](https://grammy.dev/plugins/auto-retry)).
 
 Todos os valores são configuráveis pelo `.env`.
+
+### Apresentação e boas-vindas
+
+- **Descrição** (tela do chat privado vazio, "O que este bot faz?") e **descrição curta** (perfil do bot e
+  links compartilhados) ficam em [src/data/textos.ts](src/data/textos.ts). O bot as sincroniza com o
+  Telegram ao iniciar — só envia quando o texto mudou, então basta editar o arquivo e fazer o deploy.
+- **`/start`** no privado responde com uma apresentação e a lista de comandos; em grupos, com a mensagem
+  de boas-vindas do grupo.
+- Ao ser **adicionado a um grupo**, o bot manda a mensagem de boas-vindas automaticamente.
+- Os textos usam o nome de exibição definido no @BotFather e refletem a configuração atual
+  (quantidade de estouros e cooldown).
 
 ## Criando o bot no Telegram
 
@@ -45,7 +56,7 @@ cp .env.example .env
 | `POW_MAX_MESSAGES`     | `5`    | Máximo de mensagens por `/pow`                                   |
 | `POW_DELAY_MIN_MS`     | `300`  | Pausa mínima entre mensagens (ms)                                |
 | `POW_DELAY_MAX_MS`     | `1200` | Pausa máxima entre mensagens (ms)                                |
-| `POW_COOLDOWN_SECONDS` | `10`   | Bloqueio do `/pow` por grupo após o uso (`0` desativa)           |
+| `POW_COOLDOWN_SECONDS` | `5`    | Bloqueio do `/pow` por grupo após o uso (`0` desativa)           |
 | `LOG_LEVEL`            | `info` | `trace`, `debug`, `info`, `warn`, `error` ou `fatal`             |
 | `LOG_DIR`              | `logs` | Pasta dos arquivos de log                                        |
 | `LOG_MAX_SIZE`         | `1m`   | Tamanho máximo de cada arquivo antes de rotacionar (`k`, `m`, `g`) |
@@ -76,8 +87,14 @@ src/
 ├─ bot.ts                # cria o Bot, plugins, comandos e tratamento de erros
 ├─ config.ts             # leitura e validação das variáveis de ambiente
 ├─ logger.ts             # pino: stdout + arquivos com rotação
-├─ commands/pow.ts       # o comando /pow
-├─ data/onomatopeias.ts  # frases e partes de combo  ← edite aqui para adicionar sons
+├─ profile.ts            # sincroniza descrição e descrição curta do bot
+├─ commands/
+│  ├─ pow.ts             # o comando /pow
+│  └─ start.ts           # o comando /start (boas-vindas)
+├─ events/membership.ts  # boas-vindas ao entrar em um grupo
+├─ data/
+│  ├─ onomatopeias.ts    # frases e partes de combo  ← edite aqui para adicionar sons
+│  └─ textos.ts          # descrição e mensagens de boas-vindas
 └─ lib/
    ├─ cooldown.ts        # cooldown em memória por chat
    ├─ fireworks.ts       # sorteio das mensagens (frase pronta ou combo)
@@ -103,7 +120,7 @@ Os logs vão para dois lugares:
   além do atual. Com os padrões, o teto é ~6 MB em disco — mesmo após reinícios.
 - **stdout**, visível com `docker compose logs`. No Docker esse log também é limitado (3 × 1 MB).
 
-O que é registrado: inicialização, cada `/pow` (grupo, usuário, quantidade de mensagens), erros
+O que é registrado: inicialização, entrada/saída de grupos, `/start`, cada `/pow` (grupo, usuário, quantidade de mensagens), erros
 da API/rede e, com `LOG_LEVEL=debug`, os `/pow` ignorados por cooldown.
 
 ```sh

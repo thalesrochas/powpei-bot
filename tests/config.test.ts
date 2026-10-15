@@ -9,7 +9,7 @@ describe("loadConfig", () => {
       maxMessages: 5,
       delayMinMs: 300,
       delayMaxMs: 1200,
-      cooldownSeconds: 10,
+      cooldownSeconds: 5,
     });
     expect(config.log).toEqual({ level: "info", dir: "logs", maxSize: "1m", maxFiles: 5 });
     expect(config.isProduction).toBe(false);

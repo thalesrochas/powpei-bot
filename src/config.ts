@@ -48,7 +48,7 @@ export function loadConfig(env: Env = process.env): Config {
     maxMessages: readInt(env, "POW_MAX_MESSAGES", 5, 1),
     delayMinMs: readInt(env, "POW_DELAY_MIN_MS", 300),
     delayMaxMs: readInt(env, "POW_DELAY_MAX_MS", 1200),
-    cooldownSeconds: readInt(env, "POW_COOLDOWN_SECONDS", 10),
+    cooldownSeconds: readInt(env, "POW_COOLDOWN_SECONDS", 5),
   };
   if (pow.minMessages > pow.maxMessages) {
     throw new ConfigError("POW_MIN_MESSAGES não pode ser maior que POW_MAX_MESSAGES");
